@@ -1,0 +1,57 @@
+﻿using AnimalCard.Application.Common.Interfaces;
+using Microsoft.IdentityModel.Tokens;
+using System;
+using System.Collections.Generic;
+using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
+using System.Security.Claims;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace AnimalCard.Infrastructure.Services
+{
+    public class TokenGenerator : ITokenGenerator
+    {
+        private readonly string _key;
+        private readonly string _issuer;
+        private readonly string _audience;
+        private readonly string _expiryMinutes;
+
+        public TokenGenerator(string key, string issueer, string audience, string expiryMinutes)
+        {
+            _key = key;
+            _issuer = issueer;
+            _audience = audience;
+            _expiryMinutes = expiryMinutes;
+        }
+
+        public string GenerateJWTToken((string userId, string email, IList<string> roles) userDetails)
+        {
+            var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_key));
+            var signingCredentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+
+            var (userId, email, roles) = userDetails;
+
+            var claims = new List<Claim>()
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, email),
+                new Claim(JwtRegisteredClaimNames.Jti, userId),
+                new Claim(ClaimTypes.Email, email),
+                new Claim("UserId", userId)
+            };
+            claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
+
+
+            var token = new JwtSecurityToken(
+                issuer: _issuer,
+                audience: _audience,
+                claims: claims,
+                expires: DateTime.Now.AddMinutes(Convert.ToDouble(_expiryMinutes)),
+                signingCredentials: signingCredentials
+           );
+
+            var encodedToken = new JwtSecurityTokenHandler().WriteToken(token);
+            return encodedToken;
+        }
+    }
+}
